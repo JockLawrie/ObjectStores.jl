@@ -26,7 +26,7 @@ store = StorageType(mode, root_bucket_name)
 Buckets
 
 createbucket!(store, bucketname)
-listbucket(store, bucketname)
+listcontents(store,  bucketname)
 deletebucket!(store, bucketname)
 
 Objects

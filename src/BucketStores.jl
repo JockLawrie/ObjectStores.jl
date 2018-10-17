@@ -2,10 +2,10 @@ module BucketStores
 
 
 export BucketStore, AbstractBackend,                      # Types
-       createbucket!, listbucket, deletebucket!,          # Buckets
-       setindex!, getindex, delete!,                      # Objects
-       isbucket, hasbucket, isobject, hasobject, islocal, # Conveniences
-       LocalDisk  # temporary
+       listcontents, createbucket!, deletebucket!,        # Buckets
+       getindex, setindex!, delete!,                      # Objects
+       islocal, isbucket, hasbucket, isobject, hasobject  # Conveniences
+       LocalDiskStore  # temporary
 
 
 import Base.setindex!, Base.getindex, Base.delete!
@@ -13,6 +13,7 @@ import Base.setindex!, Base.getindex, Base.delete!
 
 abstract type AbstractBackend end
 
+include("LocalDiskStores.jl")  # temporary
 
 ################################################################################
 # Constructors
@@ -37,6 +38,14 @@ BucketStore(permission, root, backend) = BucketStore(permission, root, Dict{Stri
 # API: Buckets
 
 """
+Returns a list (Vector) of the names of the buckets and objects contained in the given bucket if it exists, returns nothing otherwise.
+
+The list includes buckets and objects not created by the BucketStore instance.
+"""
+listcontents(store::BucketStore{<:AbstractBackend}, bktname::String) = listcontents(store.backend, joinpath(store.root, bktname))
+
+
+"""
 Modified: store.names
 
 Return true if all checks pass, else return false.
@@ -53,14 +62,6 @@ function createbucket!(store::BucketStore{<:AbstractBackend}, bktname::String)
     end
     result
 end
-
-
-"""
-Returns a list (Vector) of buckets and objects contained in the given bucket if it exists, returns nothing otherwise.
-
-The list includes buckets and objects not created by the BucketStore instance.
-"""
-listbucket(store::BucketStore{<:AbstractBackend}, bktname::String) = listbucket(store.backend, joinpath(store.root, bktname))
 
 
 """
@@ -86,28 +87,32 @@ end
 ################################################################################
 # API: Objects
 
-function setindex!(store::BucketStore{<:AbstractBackend}, v, i::String)
-    store.permission == :readonly && return false  # Store does not have permission to create/update objects
+"Returns the object if it exists, returns nothing otherwise."
+getindex(store::BucketStore{<:AbstractBackend}, i::String) = getindex(store.backend, joinpath(store.root, i))
 
+
+function setindex!(store::BucketStore{<:AbstractBackend}, v, i::String)
     # Run checks
-    permission = store.permission
-    fullpath   = joinpath(store.root, i)
-    if permission == :limited && !hasobject(store, i) && isobject(store.backend, fullpath) # Object pre-exists and is not in the store...cannot modify it
-        return false
+    fullpath = joinpath(store.root, i)
+    store.permission == :readonly     && return false  # Store does not have permission to create/update objects
+    isbucket(store.backend, fullpath) && return false  # i refers to a bucket, not an object
+    isobj = isobject(store.backend, fullpath)
+    cb, shortname = splitdir(i)
+    if isobj
+        if store.permission == :limited && !hasobject(store, i)  # Object exists and is not in the store...cannot modify it
+            return false
+        end
+    else
+        !isbucket(store.backend, cb) && return false  # Containing bucket does not exist...cannot create an object inside a non-existent bucket
     end
 
     # Execute
     result = setindex!(store.backend, v, fullpath)
     if result == true
-        cb, shortname = splitdir(i)
         haskey(store.names, cb) && push!(store.names[cb], shortname)
     end
     result
 end
-
-
-"Returns the object if it exists, returns nothing otherwise."
-getindex(store::BucketStore{<:AbstractBackend}, i::String) = getindex(store.backend, joinpath(store.root, i))
 
 
 function delete!(store::BucketStore{<:AbstractBackend}, i::String)
@@ -126,6 +131,9 @@ end
 ################################################################################
 # API: Conveniences
 
+"Returns true if the storage backend is on the same machine as the store instance."
+islocal(store::BucketStore{<:AbstractBackend}) = islocal(store.backend)
+
 "Returns true if name refers to a bucket."
 isbucket(store::BucketStore{<:AbstractBackend}, name::String) = isbucket(store.backend, joinpath(store.root, name))
 
@@ -140,8 +148,5 @@ function hasobject(store::BucketStore{<:AbstractBackend}, objectname::String)
     cb, shortname = splitdir(objectname)
     haskey(store.names, cb) && in(shortname, store.names[cb])
 end
-
-"Returns true if the storage backend is on the same machine as the store instance."
-islocal(store::BucketStore{<:AbstractBackend}) = islocal(store.backend)
 
 end
