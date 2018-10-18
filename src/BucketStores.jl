@@ -5,33 +5,35 @@ export BucketStore, AbstractBackend,                      # Types
        listcontents, createbucket!, deletebucket!,        # Buckets
        getindex, setindex!, delete!,                      # Objects
        islocal, isbucket, hasbucket, isobject, hasobject  # Conveniences
-       LocalDiskStore  # temporary
 
 
 import Base.setindex!, Base.getindex, Base.delete!
 
-
 abstract type AbstractBackend end
-
-include("LocalDiskStores.jl")  # temporary
 
 ################################################################################
 # Constructors
 
-struct BucketStore{T<:AbstractBackend}
+struct BucketStore{T <: AbstractBackend}
     permission::Symbol                # One of :readonly, :limited, :unlimited
     root::String                      # Name of root bucket, which contains all buckets and objects in the store.
     names::Dict{String, Set{String}}  # bucketname => Set(bucket_names..., object_names...). bucketname excludes root. Names exclude root/bucketname.
     bucketnames::Set{String}          # Names of buckets created by the store (not all buckets in names were created by the store).
     backend::T
 
-    function BucketStore(permission, root, names, bucketnames, backend)
+    function BucketStore(permission, root, backend)
         !in(permission, Set([:readonly, :limited, :unlimited])) && error("Permission must be one of :readonly, :limited, :unlimited")
-        new(permission, root, names, bucketnames, backend)
+        isobject(backend, root) && error("Root already exists as an object.")
+        newstore = new{typeof(backend)}(permission, root, Dict{String, Set{String}}(root => Set{String}()), Set{String}(), backend)
+        if !isbucket(backend, root)
+            ok = createbucket!(newstore, root)
+            if !ok
+                error("Root bucket does not exist and could not be created.")
+            end
+        end
+        newstore
     end
 end
-
-BucketStore(permission, root, backend) = BucketStore(permission, root, Dict{String, Set{String}}(), Set{String}(), backend)
 
 
 ################################################################################
@@ -41,8 +43,12 @@ BucketStore(permission, root, backend) = BucketStore(permission, root, Dict{Stri
 Returns a list (Vector) of the names of the buckets and objects contained in the given bucket if it exists, returns nothing otherwise.
 
 The list includes buckets and objects not created by the BucketStore instance.
+
+If a bucket name is not supplied, the contents of the root bucket are given.
 """
 listcontents(store::BucketStore{<:AbstractBackend}, bktname::String) = listcontents(store.backend, joinpath(store.root, bktname))
+
+listcontents(store::BucketStore{<:AbstractBackend}) = listcontents(store, store.root)
 
 
 """
@@ -53,7 +59,8 @@ Return true if all checks pass, else return false.
 function createbucket!(store::BucketStore{<:AbstractBackend}, bktname::String)
     result = false
     if store.permission != :readonly  # Store has write permission
-        result = createbucket!(store.backend, fullpath)
+        fullpath = joinpath(store.root, bktname)
+        result   = createbucket!(store.backend, fullpath)
         if result == true
             push!(store.bucketnames, bktname)
             store.names[bktname] = Set{String}()
