@@ -1,4 +1,4 @@
-# BucketStores
+# AbstractBucketStores
 
 This repo defines a common API for bucket storage.
 

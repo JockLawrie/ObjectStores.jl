@@ -3,15 +3,13 @@ Defines behaviour of bucket stores (concrete subtypes of AbstractBucketStore).
 
 Also defines fields that are common to all bucket stores.
 """
-module BucketStores
-
+module AbstractBucketStores
 
 export AbstractBucketStore,
        @add_BucketStore_common_fields,                    # Used in constructor of concrete subtypes
        listcontents, createbucket!, deletebucket!,        # Buckets
        getindex, setindex!, delete!,                      # Objects
        islocal, isbucket, hasbucket, isobject, hasobject  # Conveniences
-
 
 import Base.setindex!, Base.getindex, Base.delete!
 
@@ -67,11 +65,11 @@ function (::Type{T})(permission::Symbol, root::String, type_specific_args...) wh
     type2module[T] = parentmodule(T)  # Register the package that defines T
     newstore = T(permission, root, Dict{String, Set{String}}(root => Set{String}()), Set{String}(), type_specific_args...)
     isobject(newstore, root) && error("Root already exists as an object. Cannot use it as a bucket.")
-    if !isbucket(newstore, root)  # Root does not exist...create it
+    if !isbucket(newstore, root)      # Root does not exist...create it
         if permission == :readonly
             error("Root bucket does not exist and could not be created because permission is read-only.")
         else
-            ok = createbucket!(newstore, root)
+            ok = createbucket!(newstore, root, true)  # 3rd arg is true because bucketname is root
             if !ok
                 error("Root bucket does not exist and could not be created.")
             end
@@ -79,47 +77,6 @@ function (::Type{T})(permission::Symbol, root::String, type_specific_args...) wh
     end
     newstore
 end
-
-function isobject(store::T, name::String) where {T <: AbstractBucketStore}
-    m = type2module[typeof(store)]
-    m.isobject(store, joinpath(store.root, name))
-end
-
-function isbucket(store::T, name::String) where {T <: AbstractBucketStore}
-    m = type2module[typeof(store)]
-    m.isbucket(store, joinpath(store.root, name))
-end
-
-function createbucket!(store::T, bktname::String) where {T <: AbstractBucketStore}
-    m = type2module[typeof(store)]
-    m.createbucket!(store, bktname)
-end
-
-
-################################################################################
-# Constructors
-
-struct BucketStore{T <: AbstractBackend}
-    permission::Symbol                # One of :readonly, :limited, :unlimited
-    root::String                      # Name of root bucket, which contains all buckets and objects in the store.
-    names::Dict{String, Set{String}}  # bucketname => Set(bucket_names..., object_names...). bucketname excludes root. Names exclude root/bucketname.
-    bucketnames::Set{String}          # Names of buckets created by the store (not all buckets in names were created by the store).
-    backend::T
-
-    function BucketStore(permission, root, backend)
-        !in(permission, Set([:readonly, :limited, :unlimited])) && error("Permission must be one of :readonly, :limited, :unlimited")
-        isobject(backend, root) && error("Root already exists as an object.")
-        newstore = new{typeof(backend)}(permission, root, Dict{String, Set{String}}(root => Set{String}()), Set{String}(), backend)
-        if !isbucket(backend, root)
-            ok = createbucket!(newstore, root)
-            if !ok
-                error("Root bucket does not exist and could not be created.")
-            end
-        end
-        newstore
-    end
-end
-
 
 ################################################################################
 # API: Buckets
@@ -131,24 +88,35 @@ The list includes buckets and objects not created by the BucketStore instance.
 
 If a bucket name is not supplied, the contents of the root bucket are given.
 """
-listcontents(store::BucketStore{<:AbstractBackend}, bktname::String) = listcontents(store.backend, joinpath(store.root, bktname))
+function listcontents(store::T, bucketname::String) where {T <: AbstractBucketStore}
+    m = type2module[typeof(store)]
+    m._listcontents(store, joinpath(store.root, bucketname))
+end
 
-listcontents(store::BucketStore{<:AbstractBackend}) = listcontents(store, store.root)
+
+function listcontents(store::T) where {T <: AbstractBucketStore}
+    m = type2module[typeof(store)]
+    m._listcontents(store, store.root)
+end
 
 
 """
 Modified: store.names
 
 Return true if all checks pass, else return false.
+
+If bucketisroot then create the root bucket.
 """
-function createbucket!(store::BucketStore{<:AbstractBackend}, bktname::String)
+function createbucket!(store::T, bucketname::String, bucketisroot::Bool=false) where {T <: AbstractBucketStore}
     result = false
     if store.permission != :readonly  # Store has write permission
-        fullpath = joinpath(store.root, bktname)
-        result   = createbucket!(store.backend, fullpath)
+        m        = type2module(typeof(store))
+        fullpath = bucketisroot ? bucketname : joinpath(store.root, bucketname)
+        result   = m._createbucket!(store, fullpath)
         if result == true
-            push!(store.bucketnames, bktname)
-            store.names[bktname] = Set{String}()
+            push!(store.bucketnames, bucketname)
+            store.names[bucketname] = Set{String}()
+            cb, shortname = splitdir(bucketname)
             haskey(store.names, cb) && push!(store.names[cb], shortname)
         end
     end
@@ -160,15 +128,19 @@ end
 Modified: store.names
 
 Return true if all checks pass, else return false.
+
+If bucketisroot then delete the root bucket.
 """
-function deletebucket!(store::BucketStore{<:AbstractBackend}, bktname::String)
+function deletebucket!(store::T, bucketname::String, bucketisroot::Bool=false) where {T <: AbstractBucketStore}
     result = false
-    if (store.permission == :limited && hasbucket(store, bktname)) || store.permission == :unlimited
-        result = deletebucket!(store.backend, joinpath(store.root, bktname))
+    if (store.permission == :limited && hasbucket(store, bucketname)) || store.permission == :unlimited
+        m        = type2module(typeof(store))
+        fullpath = bucketisroot ? bucketname : joinpath(store.root, bucketname)
+        result   = m._deletebucket!(store, fullpath)
         if result == true
-            hasbucket(store, bktname)    && pop!(store.bucketnames, bktname)
-            haskey(store.names, bktname) && delete!(store.names, bktname)
-            cb, shortname = splitdir(bktname)
+            hasbucket(store, bucketname)    && pop!(store.bucketnames, bucketname)
+            haskey(store.names, bucketname) && delete!(store.names, bucketname)
+            cb, shortname = splitdir(bucketname)
             haskey(store.names, cb) && pop!(store.names[cb], shortname)
         end
     end
@@ -180,37 +152,39 @@ end
 # API: Objects
 
 "Returns the object if it exists, returns nothing otherwise."
-getindex(store::BucketStore{<:AbstractBackend}, i::String) = getindex(store.backend, joinpath(store.root, i))
+function getindex(store::T, i::String) where {T <: AbstractBucketStore}
+    m = type2module[typeof(store)]
+    m._getindex(store, joinpath(store.root, i))
+end
 
 
-function setindex!(store::BucketStore{<:AbstractBackend}, v, i::String)
+function setindex!(store::T, v, i::String) where {T <: AbstractBucketStore}
     # Run checks
+    store.permission == :readonly && return false  # Store does not have permission to create/update objects
     fullpath = joinpath(store.root, i)
-    store.permission == :readonly     && return false  # Store does not have permission to create/update objects
-    isbucket(store.backend, fullpath) && return false  # i refers to a bucket, not an object
-    isobj = isobject(store.backend, fullpath)
+    m        = type2module[typeof(store)]
+    m._isbucket(store, fullpath)  && return false  # i refers to a bucket, not an object
     cb, shortname = splitdir(i)
-    if isobj
+    if m._isobject(store, fullpath)
         if store.permission == :limited && !hasobject(store, i)  # Object exists and is not in the store...cannot modify it
             return false
         end
     else
-        !isbucket(store.backend, cb) && return false  # Containing bucket does not exist...cannot create an object inside a non-existent bucket
+        !m._isbucket(store, cb) && return false  # Containing bucket does not exist...cannot create an object inside a non-existent bucket
     end
 
     # Execute
-    result = setindex!(store.backend, v, fullpath)
-    if result == true
-        haskey(store.names, cb) && push!(store.names[cb], shortname)
-    end
+    result = m._setindex!(store, v, fullpath)
+    result == true && haskey(store.names, cb) && push!(store.names[cb], shortname)
     result
 end
 
 
-function delete!(store::BucketStore{<:AbstractBackend}, i::String)
+function delete!(store::T, i::String) where {T <: AbstractBucketStore}
     result = false
     if (store.permission == :limited && hasobject(store, i)) || store.permission == :unlimited
-        result = delete!(store.backend, joinpath(store.root, i))
+        m      = type2module[typeof(store)]
+        result = m._delete!(store, joinpath(store.root, i))
         if result == true
             cb, shortname = splitdir(i)
             haskey(store.names, cb) && pop!(store.names[cb], shortname)
@@ -224,19 +198,28 @@ end
 # API: Conveniences
 
 "Returns true if the storage backend is on the same machine as the store instance."
-islocal(store::BucketStore{<:AbstractBackend}) = islocal(store.backend)
+function islocal(store::T) where {T <: AbstractBucketStore}
+    m = type2module[typeof(store)]
+    m._islocal(store)
+end
 
 "Returns true if name refers to a bucket."
-isbucket(store::BucketStore{<:AbstractBackend}, name::String) = isbucket(store.backend, joinpath(store.root, name))
-
-"Returns true if the bucket is in the store."
-hasbucket(store::BucketStore{<:AbstractBackend}, bktname::String) = in(bktname, store.bucketnames)
+function isbucket(store::T, name::String) where {T <: AbstractBucketStore}
+    m = type2module[typeof(store)]
+    m._isbucket(store, joinpath(store.root, name))
+end
 
 "Returns true if name refers to an object."
-isobject(store::BucketStore{<:AbstractBackend}, name::String) = isobject(store.backend, joinpath(store.root, name))
+function isobject(store::T, name::String) where {T <: AbstractBucketStore}
+    m = type2module[typeof(store)]
+    m._isobject(store, joinpath(store.root, name))
+end
 
 "Returns true if the bucket is in the store."
-function hasobject(store::BucketStore{<:AbstractBackend}, objectname::String)
+hasbucket(store::T, bktname::String) where {T <: AbstractBucketStore} = in(bktname, store.bucketnames)
+
+"Returns true if the bucket is in the store."
+function hasobject(store::T, objectname::String) where {T <: AbstractBucketStore}
     cb, shortname = splitdir(objectname)
     haskey(store.names, cb) && in(shortname, store.names[cb])
 end
