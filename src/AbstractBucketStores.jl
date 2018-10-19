@@ -227,7 +227,7 @@ function isobject(store::T, name::String) where {T <: AbstractBucketStore}
 end
 
 "Returns true if the bucket is in the store."
-hasbucket(store::T, bktname::String) where {T <: AbstractBucketStore} = in(bktname, store.bucketnames)
+hasbucket(store::T, bucketname::String) where {T <: AbstractBucketStore} = in(bucketname, store.bucketnames)
 
 "Returns true if the bucket is in the store."
 function hasobject(store::T, objectname::String) where {T <: AbstractBucketStore}
