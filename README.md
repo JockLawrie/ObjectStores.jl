@@ -28,7 +28,7 @@ Currently the permission level must be one of the following:
 
 # Example Usage
 
-See `LocalDiskStorage.jl`, which implements the bucket store API using the file system as the back-end.
+See `LocalDiskStores.jl`, which implements the bucket store API using the file system as the back-end.
 
 
 # API
