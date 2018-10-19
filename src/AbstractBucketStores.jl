@@ -110,14 +110,19 @@ If bucketisroot then create the root bucket.
 function createbucket!(store::T, bucketname::String, bucketisroot::Bool=false) where {T <: AbstractBucketStore}
     result = false
     if store.permission != :readonly  # Store has write permission
-        m        = type2module(typeof(store))
+        m        = type2module[typeof(store)]
         fullpath = bucketisroot ? bucketname : joinpath(store.root, bucketname)
         result   = m._createbucket!(store, fullpath)
         if result == true
             push!(store.bucketnames, bucketname)
             store.names[bucketname] = Set{String}()
-            cb, shortname = splitdir(bucketname)
-            haskey(store.names, cb) && push!(store.names[cb], shortname)
+            if !bucketisroot
+                cb, shortname = splitdir(bucketname)
+                if cb == ""  # bucketname is a member of the root bucket
+                    cb = store.root
+                end
+                haskey(store.names, cb) && push!(store.names[cb], shortname)
+            end
         end
     end
     result
@@ -134,14 +139,19 @@ If bucketisroot then delete the root bucket.
 function deletebucket!(store::T, bucketname::String, bucketisroot::Bool=false) where {T <: AbstractBucketStore}
     result = false
     if (store.permission == :limited && hasbucket(store, bucketname)) || store.permission == :unlimited
-        m        = type2module(typeof(store))
+        m        = type2module[typeof(store)]
         fullpath = bucketisroot ? bucketname : joinpath(store.root, bucketname)
         result   = m._deletebucket!(store, fullpath)
         if result == true
             hasbucket(store, bucketname)    && pop!(store.bucketnames, bucketname)
             haskey(store.names, bucketname) && delete!(store.names, bucketname)
-            cb, shortname = splitdir(bucketname)
-            haskey(store.names, cb) && pop!(store.names[cb], shortname)
+            if !bucketisroot
+                cb, shortname = splitdir(bucketname)
+                if cb == ""  # bucketname is a member of the root bucket
+                    cb = store.root
+                end
+                haskey(store.names, cb) && pop!(store.names[cb], shortname)
+            end
         end
     end
     result
@@ -164,17 +174,18 @@ function setindex!(store::T, v, i::String) where {T <: AbstractBucketStore}
     fullpath = joinpath(store.root, i)
     m        = type2module[typeof(store)]
     m._isbucket(store, fullpath)  && return false  # i refers to a bucket, not an object
-    cb, shortname = splitdir(i)
     if m._isobject(store, fullpath)
         if store.permission == :limited && !hasobject(store, i)  # Object exists and is not in the store...cannot modify it
             return false
         end
     else
+        cb, shortname = splitdir(fullpath)
         !m._isbucket(store, cb) && return false  # Containing bucket does not exist...cannot create an object inside a non-existent bucket
     end
 
     # Execute
     result = m._setindex!(store, v, fullpath)
+    cb, shortname = splitdir(i)
     result == true && haskey(store.names, cb) && push!(store.names[cb], shortname)
     result
 end
