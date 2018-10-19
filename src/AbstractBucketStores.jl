@@ -79,7 +79,7 @@ function (::Type{T})(permission::Symbol, root::String, type_specific_args...) wh
 end
 
 ################################################################################
-# API: Buckets
+# Buckets
 
 """
 Returns a list (Vector) of the names of the buckets and objects contained in the given bucket if it exists, returns nothing otherwise.
@@ -153,7 +153,7 @@ end
 
 
 ################################################################################
-# API: Objects
+# Objects
 
 "Returns the object if it exists, returns nothing otherwise."
 function getindex(store::T, i::String) where {T <: AbstractBucketStore}
@@ -200,7 +200,7 @@ end
 
 
 ################################################################################
-# API: Conveniences
+# Conveniences
 
 "Returns true if the storage backend is on the same machine as the store instance."
 function islocal(store::T) where {T <: AbstractBucketStore}
