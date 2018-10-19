@@ -144,7 +144,7 @@ function deletebucket!(store::T, bucketname::String, bucketisroot::Bool=false) w
             haskey(store.names, fullpath) && delete!(store.names, fullpath)
             if !bucketisroot
                 cb, shortname = splitdir(fullpath)
-                haskey(store.names, cb) && pop!(store.names[cb], fullpath)
+                haskey(store.names, cb) && in(fullpath, store.names[cb]) && pop!(store.names[cb], fullpath)
             end
         end
     end
@@ -192,7 +192,7 @@ function delete!(store::T, i::String) where {T <: AbstractBucketStore}
         result   = m._delete!(store, fullpath)
         if result == true
             cb, shortname = splitdir(fullpath)
-            haskey(store.names, cb) && pop!(store.names[cb], fullpath)
+            haskey(store.names, cb) && in(fullpath, store.names[cb]) && pop!(store.names[cb], fullpath)
         end
     end
     result
