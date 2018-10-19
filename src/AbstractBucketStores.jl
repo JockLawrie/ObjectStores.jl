@@ -114,14 +114,11 @@ function createbucket!(store::T, bucketname::String, bucketisroot::Bool=false) w
         fullpath = bucketisroot ? bucketname : joinpath(store.root, bucketname)
         result   = m._createbucket!(store, fullpath)
         if result == true
-            push!(store.bucketnames, bucketname)
-            store.names[bucketname] = Set{String}()
+            push!(store.bucketnames, fullpath)
+            store.names[fullpath] = Set{String}()
             if !bucketisroot
-                cb, shortname = splitdir(bucketname)
-                if cb == ""  # bucketname is a member of the root bucket
-                    cb = store.root
-                end
-                haskey(store.names, cb) && push!(store.names[cb], shortname)
+                cb, shortname = splitdir(fullpath)
+                haskey(store.names, cb) && push!(store.names[cb], fullpath)
             end
         end
     end
@@ -143,14 +140,11 @@ function deletebucket!(store::T, bucketname::String, bucketisroot::Bool=false) w
         fullpath = bucketisroot ? bucketname : joinpath(store.root, bucketname)
         result   = m._deletebucket!(store, fullpath)
         if result == true
-            hasbucket(store, bucketname)    && pop!(store.bucketnames, bucketname)
-            haskey(store.names, bucketname) && delete!(store.names, bucketname)
+            hasbucket(store, bucketname)  && pop!(store.bucketnames, fullpath)
+            haskey(store.names, fullpath) && delete!(store.names, fullpath)
             if !bucketisroot
-                cb, shortname = splitdir(bucketname)
-                if cb == ""  # bucketname is a member of the root bucket
-                    cb = store.root
-                end
-                haskey(store.names, cb) && pop!(store.names[cb], shortname)
+                cb, shortname = splitdir(fullpath)
+                haskey(store.names, cb) && pop!(store.names[cb], fullpath)
             end
         end
     end
@@ -174,19 +168,18 @@ function setindex!(store::T, v, i::String) where {T <: AbstractBucketStore}
     fullpath = joinpath(store.root, i)
     m        = type2module[typeof(store)]
     m._isbucket(store, fullpath)  && return false  # i refers to a bucket, not an object
+    cb, shortname = splitdir(fullpath)
     if m._isobject(store, fullpath)
         if store.permission == :limited && !hasobject(store, i)  # Object exists and is not in the store...cannot modify it
             return false
         end
     else
-        cb, shortname = splitdir(fullpath)
         !m._isbucket(store, cb) && return false  # Containing bucket does not exist...cannot create an object inside a non-existent bucket
     end
 
     # Execute
     result = m._setindex!(store, v, fullpath)
-    cb, shortname = splitdir(i)
-    result == true && haskey(store.names, cb) && push!(store.names[cb], shortname)
+    result == true && haskey(store.names, cb) && push!(store.names[cb], fullpath)
     result
 end
 
@@ -194,11 +187,12 @@ end
 function delete!(store::T, i::String) where {T <: AbstractBucketStore}
     result = false
     if (store.permission == :limited && hasobject(store, i)) || store.permission == :unlimited
-        m      = type2module[typeof(store)]
-        result = m._delete!(store, joinpath(store.root, i))
+        m        = type2module[typeof(store)]
+        fullpath = joinpath(store.root, i)
+        result   = m._delete!(store, fullpath)
         if result == true
-            cb, shortname = splitdir(i)
-            haskey(store.names, cb) && pop!(store.names[cb], shortname)
+            cb, shortname = splitdir(fullpath)
+            haskey(store.names, cb) && pop!(store.names[cb], fullpath)
         end
     end
     result
@@ -227,12 +221,13 @@ function isobject(store::T, name::String) where {T <: AbstractBucketStore}
 end
 
 "Returns true if the bucket is in the store."
-hasbucket(store::T, bucketname::String) where {T <: AbstractBucketStore} = in(bucketname, store.bucketnames)
+hasbucket(store::T, bucketname::String) where {T <: AbstractBucketStore} = in(joinpath(store.root, bucketname), store.bucketnames)
 
 "Returns true if the bucket is in the store."
 function hasobject(store::T, objectname::String) where {T <: AbstractBucketStore}
-    cb, shortname = splitdir(objectname)
-    haskey(store.names, cb) && in(shortname, store.names[cb])
+    fullpath = joinpath(store.root, objectname)
+    cb, shortname = splitdir(fullpath)
+    haskey(store.names, cb) && in(fullpath, store.names[cb])
 end
 
 end
