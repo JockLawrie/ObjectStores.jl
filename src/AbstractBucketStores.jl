@@ -99,11 +99,11 @@ end
 function setindex!(store::BucketStore, v, i::String)
     fullpath = joinpath(store.root, i)
     backend  = store.backend
-    O = backend.object_type
     m = parentmodule(typeof(backend))
-    m._isbucket(store, fullpath)  && return (false, "$(i) is a bucket, not an object")
+    m._isbucket(fullpath)  && return (false, "$(i) is a bucket, not an object")
     cb, shortname = splitdir(fullpath)
-    !m._isbucket(store, cb) && return (false, "Cannot create object $(i) inside a non-existent bucket.")
+    !m._isbucket(cb) && return (false, "Cannot create object $(i) inside a non-existent bucket.")
+    O = backend.object_type
     create!(store, m.O(fullpath), v)
 end
 
