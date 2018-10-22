@@ -1,0 +1,16 @@
+[[Authorization]]
+deps = ["Dates"]
+path = "/var/hro/repos/Authorization.jl"
+uuid = "edb23f2a-d586-11e8-2b8a-1bcdb9b1bfed"
+version = "0.1.0"
+
+[[Dates]]
+deps = ["Printf"]
+uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[[Printf]]
+deps = ["Unicode"]
+uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[[Unicode]]
+uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"

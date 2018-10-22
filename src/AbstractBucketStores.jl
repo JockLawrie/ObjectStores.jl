@@ -22,9 +22,9 @@ struct BucketStore{T <: AbstractStorageBackend} <: AbstractClient
 
     function BucketStore(id, root, backend, id2permission, idpattern2permission, type2permission)
         m = parentmodule(typeof(backend))
-        m._isobject(backend, root) && error("Root already exists as an object. Cannot use it as a bucket.")
+        m._isobject(root) && error("Root already exists as an object. Cannot use it as a bucket.")
         newstore = new{typeof(backend)}(root, backend, id, id2permission, idpattern2permission, type2permission)
-        if !m._isbucket(backend, root)  # Root does not exist...create it
+        if !m._isbucket(root)  # Root does not exist...create it
             ok, msg = createbucket!(newstore, "")  # 2nd arg "" implies bucketname is root
             !ok && error(msg)
         end
@@ -122,19 +122,19 @@ end
 "Returns true if the storage backend is on the same machine as the store instance."
 function islocal(store::BucketStore)
     m = parentmodule(typeof(store.backend))
-    m._islocal(store)
+    m._islocal(store.backend)
 end
 
 "Returns true if name refers to a bucket."
 function isbucket(store::BucketStore, name::String)
     m = parentmodule(typeof(store.backend))
-    m._isbucket(store, joinpath(store.root, name))
+    m._isbucket(joinpath(store.root, name))
 end
 
 "Returns true if name refers to an object."
 function isobject(store::BucketStore, name::String)
     m = parentmodule(typeof(store.backend))
-    m._isobject(store, joinpath(store.root, name))
+    m._isobject(joinpath(store.root, name))
 end
 
 end
