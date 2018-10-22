@@ -1,11 +1,12 @@
 module AbstractBucketStores
 
 export BucketStore, AbstractStorageBackend,        # Types
-       listcontents, createbucket!, deletebucket!, # Buckets: read, create/update, delete
-       getindex, setindex!, delete!,               # Objects: read, create/update, delete
+       createbucket!, listcontents, deletebucket!, # Buckets: create/update, read, delete
+       setindex!, getindex, delete!,               # Objects: create/update, read, delete
        islocal, isbucket, isobject                 # Conveniences
 
 using Authorization
+using Logging
 
 import Base.setindex!, Base.getindex, Base.delete!
 
@@ -36,29 +37,7 @@ end
 ################################################################################
 # Buckets
 
-"""
-Returns a list (Vector) of the names of the buckets and objects contained in the given bucket if it exists, returns nothing otherwise.
-
-The list includes buckets and objects not created by the BucketStore instance.
-
-If a bucket name is not supplied, the contents of the root bucket are given.
-"""
-function listcontents(store::BucketStore, bucketname::String="")
-    backend = store.backend
-    B = backend.bucket_type
-    m = parentmodule(typeof(backend))
-    resourceid = bucketname == "" ? store.root : joinpath(store.root, bucketname)
-    read(store, m.B(resourceid))
-end
-
-
-"""
-Modified: store.names
-
-Return true if all checks pass, else return false.
-
-If bucketisroot then create the root bucket.
-"""
+"Create bucket. If successful return nothing, else return an error message as a String."
 function createbucket!(store::BucketStore, bucketname::String="")
     backend = store.backend
     B = backend.bucket_type
@@ -68,13 +47,22 @@ function createbucket!(store::BucketStore, bucketname::String="")
 end
 
 
-"""
-Modified: store.names
+"Read bucket. If successful return the value, else @warn the error message and return nothing."
+function listcontents(store::BucketStore, bucketname::String="")
+    backend = store.backend
+    B = backend.bucket_type
+    m = parentmodule(typeof(backend))
+    resourceid = bucketname == "" ? store.root : joinpath(store.root, bucketname)
+    ok, val = read(store, m.B(resourceid))
+    if !ok
+        @warn val
+        return nothing
+    end
+    val
+end
 
-Return true if all checks pass, else return false.
 
-If bucketisroot then delete the root bucket.
-"""
+"Delete bucket. If successful return nothing, else return an error message as a String."
 function deletebucket!(store::BucketStore, bucketname::String)
     backend = store.backend
     B = backend.bucket_type
@@ -87,15 +75,7 @@ end
 ################################################################################
 # Objects
 
-"Returns the object if it exists, returns nothing otherwise."
-function getindex(store::BucketStore, i::String)
-    backend = store.backend
-    O = backend.object_type
-    m = parentmodule(typeof(backend))
-    read(store, m.O(joinpath(store.root, i)))
-end
-
-
+"Create/update object. If successful return nothing, else return an error message as a String."
 function setindex!(store::BucketStore, v, i::String)
     fullpath = joinpath(store.root, i)
     backend  = store.backend
@@ -108,6 +88,21 @@ function setindex!(store::BucketStore, v, i::String)
 end
 
 
+"Read object. If successful return the value, else @warn the error message and return nothing."
+function getindex(store::BucketStore, i::String)
+    backend = store.backend
+    O = backend.object_type
+    m = parentmodule(typeof(backend))
+    ok, val = read(store, m.O(joinpath(store.root, i)))
+    if !ok
+        @warn val
+        return nothing
+    end
+    val
+end
+
+
+"Delete object. If successful return nothing, else return an error message as a String."
 function delete!(store::BucketStore, i::String)
     backend = store.backend
     O = backend.object_type
