@@ -29,19 +29,21 @@ See the examples and tests in [`LocalDiskStores.jl`](), which uses the local fil
 # API
 
 ```julia
-# Constructor
+# Constructor. The store cannot access buckets or objects that are outside the root bucket.
 store = BucketStore(storename::String, root_bucket_name::String, backend::T) where {T <: AbstractStorageBackend}
+
+# Set access permissions
 setpermission!(store, :bucket, Permission(false, true, false, false))  # Bucket access is cRud (read-only) without expiry
 setpermission!(store, :object, Permission(false, true, false, false))  # Object access is cRud (read-only) without expiry
 
 # Allow CRUD (read/write) access for 5 minutes to objects in the bucket called "mybucket"
-setpermission!(store, r"mybucket/*", Permission(true, true, true, true, now() + Minute(5)))
+setpermission!(store, r"rootbucket/mybucket/*", Permission(true, true, true, true, now() + Minute(5)))
 
 # Buckets
 
 createbucket!(store, "mybucket")  # Create mybucket in the root bucket
-listcontents(store,  "mybucket")  # List the contents of the bucket
-deletebucket!(store, "mybucket")  # Delete the bucket
+listcontents(store,  "mybucket")  # List the contents of rootbucket/mybucket. Return nothing if it doesn't exist
+deletebucket!(store, "mybucket")  # Delete rootbucket/mybucket if it exists
 
 # Objects
 

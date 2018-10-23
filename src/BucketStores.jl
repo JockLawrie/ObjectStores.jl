@@ -63,7 +63,13 @@ end
 "Create bucket. If successful return nothing, else return an error message as a String."
 function createbucket!(store::BucketStore, bucketname::String="")
     B = store.backend.bucket_type
-    resourceid = bucketname == "" ? store.root : joinpath(store.root, bucketname)
+    if bucketname == ""
+        resourceid = store.root
+    else
+        resourceid = normpath(joinpath(store.root, bucketname))
+        n = length(store.root)
+        (length(resourceid) < n || resourceid[1:n] != store.root) && return "Cannot create a bucket outside the root bucket"
+    end
     create!(store, B(resourceid))
 end
 
@@ -71,7 +77,16 @@ end
 "List the contents of the bucket. If successful return the value, else @warn the error message and return nothing."
 function listcontents(store::BucketStore, bucketname::String="")
     B = store.backend.bucket_type
-    resourceid = bucketname == "" ? store.root : joinpath(store.root, bucketname)
+    if bucketname == ""
+        resourceid = store.root
+    else
+        resourceid = normpath(joinpath(store.root, bucketname))
+        n = length(store.root)
+        if length(resourceid) < n || resourceid[1:n] != store.root
+            @warn "Cannot read a bucket outside the root bucket"
+            nothing
+        end
+    end
     ok, val = read(store, B(resourceid))
     if !ok
         @warn val
@@ -84,7 +99,13 @@ end
 "Delete bucket. If successful return nothing, else return an error message as a String."
 function deletebucket!(store::BucketStore, bucketname::String)
     B = store.backend.bucket_type
-    resourceid = bucketname == "" ? store.root : joinpath(store.root, bucketname)
+    if bucketname == ""
+        resourceid = store.root
+    else
+        resourceid = normpath(joinpath(store.root, bucketname))
+        n = length(store.root)
+        (length(resourceid) < n || resourceid[1:n] != store.root) && return "Cannot delete a bucket outside the root bucket"
+    end
     delete!(store, B(resourceid))
 end
 
@@ -94,21 +115,29 @@ end
 
 "Create/update object. If successful return nothing, else return an error message as a String."
 function setindex!(store::BucketStore, v, i::String)
-    fullpath = joinpath(store.root, i)
-    backend  = store.backend
+    resourceid = normpath(joinpath(store.root, i))
+    n = length(store.root)
+    (length(resourceid) < n || resourceid[1:n] != store.root) && return "Cannot create/update an object outside the root bucket"
+    backend = store.backend
     m = parentmodule(typeof(backend))
-    m._isbucket(fullpath)  && return (false, "$(i) is a bucket, not an object")
-    cb, shortname = splitdir(fullpath)
-    !m._isbucket(cb) && return (false, "Cannot create object $(i) inside a non-existent bucket.")
+    m._isbucket(resourceid) && return "$(i) is a bucket, not an object"
+    cb, shortname = splitdir(resourceid)
+    !m._isbucket(cb) && return "Cannot create object $(i) inside a non-existent bucket."
     O = backend.object_type
-    create!(store, O(fullpath), v)
+    create!(store, O(resourceid), v)
 end
 
 
 "Read object. If successful return the value, else @warn the error message and return nothing."
 function getindex(store::BucketStore, i::String)
+    resourceid = normpath(joinpath(store.root, i))
+    n = length(store.root)
+    if length(resourceid) < n || resourceid[1:n] != store.root
+        @warn "Cannot read an object outside the root bucket"
+        return nothing
+    end
     O = store.backend.object_type
-    ok, val = read(store, O(joinpath(store.root, i)))
+    ok, val = read(store, O(resourceid))
     if !ok
         @warn val
         return nothing
@@ -119,8 +148,11 @@ end
 
 "Delete object. If successful return nothing, else return an error message as a String."
 function delete!(store::BucketStore, i::String)
+    resourceid = normpath(joinpath(store.root, i))
+    n = length(store.root)
+    (length(resourceid) < n || resourceid[1:n] != store.root) && return "Cannot delete an object outside the root bucket"
     O = store.backend.object_type
-    delete!(store, O(joinpath(store.root, i)))
+    delete!(store, O(resourceid))
 end
 
 
@@ -135,14 +167,28 @@ end
 
 "Returns true if name refers to a bucket."
 function isbucket(store::BucketStore, name::String)
-    m = parentmodule(typeof(store.backend))
-    m._isbucket(joinpath(store.root, name))
+    resourceid = normpath(joinpath(store.root, name))
+    n = length(store.root)
+    if length(resourceid) < n || resourceid[1:n] != store.root
+        @warn "Cannot access buckets or objects outside the root bucket"
+        false
+    else
+        m = parentmodule(typeof(store.backend))
+        m._isbucket(resourceid)
+    end
 end
 
 "Returns true if name refers to an object."
 function isobject(store::BucketStore, name::String)
-    m = parentmodule(typeof(store.backend))
-    m._isobject(joinpath(store.root, name))
+    resourceid = normpath(joinpath(store.root, name))
+    n = length(store.root)
+    if length(resourceid) < n || resourceid[1:n] != store.root
+        @warn "Cannot access buckets or objects outside the root bucket"
+        false
+    else
+        m = parentmodule(typeof(store.backend))
+        m._isobject(resourceid)
+    end
 end
 
 function setpermission!(store::BucketStore, resourcetype::Symbol, p::Permission)
