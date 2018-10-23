@@ -1,68 +1,64 @@
-# AbstractBucketStores
+# BucketStores
 
-This repo defines a common API for bucket storage.
+This repo defines a client for bucket storage and allows changing storage back-ends without changing your code.
 
-This allows changing storage back-ends without changing your code.
-
-Storage back-ends include in-memory, local disk and bucket storage in the cloud.
+Storage back-ends include in-memory, local disk and cloud-based storage.
 
 
 # What is bucket storage?
 
-- Store data as objects
-- Groups objects into buckets
+In bucket storage, data is stored as objects and objects are grouped into buckets.
+This package defines a client for bucket storage and allows the storage backend to be swapped without changing any code.
 
-For example, if the storage back-end is the local file system then objects are files and buckets are directories.
+Examples of storage backends include:
+- [`LocalDiskStores.jl`](), which uses the local file system to store objects (files) in buckets (directories).
+- [`GCSBucketStores.jl`](), which uses Google Cloud Storage.
 
 
 # Permissions
 
-When constructing a store, you must select a permission level for the store.
-This determines what read/write privileges the store has.
-Currently the permission level must be one of the following:
 
-- read only (`:readonly`)
-- limited write (`:limited`): Can only update and delete buckets and objects that the store instance created.
-- unlimited write access (`:unlimited`)
-
+A bucket store's access to buckets and objects is controlled using the small but flexible [`Authorization.jl`]() framework.
+This framework allows both fine-grained access control for specific buckets and objects, as well as more coarse access control such as uniform access for all buckets and/or objects. Please read the [`README`]() to understand how to access buckets and objects can be controlled.
 
 # Example Usage
 
-See `LocalDiskStores.jl`, which implements the bucket store API using the file system as the back-end.
+See the examples and tests in [`LocalDiskStores.jl`](), which uses the local file system as the storage backend.
 
 
 # API
 
-Constructor
-
 ```julia
-store = StoreType(permission::Symbol, root_bucket_name::String, type_specific_args...)
-```
+# Constructor
+store = BucketStore(storename::String, root_bucket_name::String, backend::T) where {T <: AbstractStorageBackend}
+setpermission!(store, :bucket, Permission(false, true, false, false))  # Bucket access is cRud (read-only) without expiry
+setpermission!(store, :object, Permission(false, true, false, false))  # Object access is cRud (read-only) without expiry
 
-Buckets
+# Allow CRUD (read/write) access for 5 minutes to objects in the bucket called "mybucket"
+setpermission!(store, r"mybucket/*", Permission(true, true, true, true, now() + Minute(5)))
 
-```julia
-createbucket!(store, bucketname)
-listcontents(store,  bucketname)
-deletebucket!(store, bucketname)
-```
+# Buckets
 
-Objects
+createbucket!(store, "mybucket")  # Create mybucket in the root bucket
+listcontents(store,  "mybucket")  # List the contents of the bucket
+deletebucket!(store, "mybucket")  # Delete the bucket
 
-```julia
+# Objects
+
 store["mybucket/myobject"] = value     # Create/update. Not possible if the bucket doesn't exist.
 store["mybucket/myobject"]             # Read. Returns nothing if the object doesn't exist.
 delete!(store, "mybucket/myobject")
-```
 
-Conveniences
+# Conveniences
 
-```julia
 isbucket(store,  bucketname)  # True if bucketname refers to a bucket
-hasbucket(store, bucketname)  # True if bucketname refers to a bucket in the store
-
 isobject(store,  objectname)  # True if objectname refers to an object
-hasobject(store, objectname)  # True if objectname refers to an object in the store
+islocal(store)                # Returns true if the storage location is on the same machine as the store instance
 
-islocal(store)  # Returns true if the storage location is on the same machine as the store instance
+# Permission queries
+p = getpermission(store, bucket_or_object)  # Get the permission settings for the specific bucket/object
+setexpiry!(store, now() + Hour(1))          # Set an expiry for all the buckets/objects that the store has access to
+
+haspermission(store, bucket_or_object, :create)  # True if the store has :create access to the bucket/object
+permissions_conflict(store, "mybucket")          # True if the rules that define the store's access to "mybucket" conflict
 ```
