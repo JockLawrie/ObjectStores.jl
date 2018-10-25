@@ -1,36 +1,45 @@
-# BucketStores
+# ObjectStores
 
-This repo defines a client for bucket storage and allows changing storage back-ends without changing your code.
+This package defines a client for object storage that allows changing storage back-ends without changing your code.
 
-Storage back-ends include in-memory, local disk and cloud-based storage.
+Storage back-ends include in-memory, local disk and cloud-based object storage.
 
 
-# What is bucket storage?
+# What is an object store?
 
-In bucket storage, data is stored as objects and objects are grouped into buckets.
-This package defines a client for bucket storage and allows the storage backend to be swapped without changing any code.
+In an object store, data is stored as objects and objects are grouped into buckets.
 
-Examples of storage backends include:
-- [`LocalDiskStores.jl`](), which uses the local file system to store objects (files) in buckets (directories).
-- [`GCSBucketStores.jl`](), which uses Google Cloud Storage.
+Examples of storage back-ends include:
+- [`LocalDiskObjectStores.jl`](), which uses the local file system to store objects (files) in buckets (directories).
+- [`GCSObjectStores.jl`](), which uses Google Cloud Storage.
 
 
 # Permissions
 
-
-A bucket store's access to buckets and objects is controlled using the small but flexible [`Authorization.jl`]() framework.
+An object store's access to buckets and objects is controlled using the small but flexible [`Authorization.jl`]() framework.
 This framework allows both fine-grained access control for specific buckets and objects, as well as more coarse access control such as uniform access for all buckets and/or objects. Please read the [`README`]() to understand how to access buckets and objects can be controlled.
+
+_Note:_ A store cannot act on (create/read/delete) buckets or objects that are outside the root bucket.
 
 # Example Usage
 
-See the examples and tests in [`LocalDiskStores.jl`](), which uses the local file system as the storage backend.
+See the examples and tests in [`LocalDiskObjectStores.jl`](), which uses the local file system as the storage back-end.
 
 
 # API
 
 ```julia
-# Constructor. The store cannot access buckets or objects that are outside the root bucket.
-store = BucketStore(storename::String, root_bucket_name::String, backend::T) where {T <: AbstractStorageBackend}
+#=
+  Constructor:
+    store = ObjectStore(rootbucketID::String, storageclient::T) where {T <: ObjectStorageClient}
+
+  Examples:
+    store = ObjectStore("/tmp/rootbucket", LocalDiskObjectStores.Client())     # Objects/buckets are on the local file system
+    store = ObjectStore("myrootbucket", GCSObjectStores.Client("creds.json"))  # Objects/buckets are on Google Cloud Storage
+
+  The code below will work regardless of which storage back-end is used (using either constructor above).
+=#
+
 
 # Set access permissions
 setpermission!(store, :bucket, Permission(false, true, false, false))  # Bucket access is cRud (read-only) without expiry

@@ -1,7 +1,7 @@
-name = "BucketStores"
+name = "ObjectStores"
 uuid = "e102f8c2-d0e1-11e8-0211-39155c3f0463"
 authors = ["Jock Lawrie <jock.lawrie@gmail.com>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 Authorization = "edb23f2a-d586-11e8-2b8a-1bcdb9b1bfed"
