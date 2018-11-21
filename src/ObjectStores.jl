@@ -1,8 +1,8 @@
 module ObjectStores
 
 export ObjectStore, Bucket, Object,                # Types
-       createbucket!, listcontents, deletebucket!, # Buckets: create/update, read, delete
-       setindex!, getindex, delete!,               # Objects: create/update, read, delete
+       createbucket!, listcontents, deletebucket!, # Buckets: create, read, delete
+       setindex!, getindex, delete!,               # Objects: create, read, delete
        isbucket, isobject,                         # Conveniences
        Permission,                                 # Re-exported from Authorization
        getpermission, setpermission!, setexpiry!,  # Re-exported from Authorization
