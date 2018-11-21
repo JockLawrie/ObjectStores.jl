@@ -64,7 +64,6 @@ delete!(store, "mybucket/myobject")
 
 isbucket(store,  bucketname)  # True if bucketname refers to a bucket
 isobject(store,  objectname)  # True if objectname refers to an object
-islocal(store)                # Returns true if the storage location is on the same machine as the store instance
 
 # Permission queries
 p = getpermission(store, bucket_or_object)  # Get the permission settings for the specific bucket/object

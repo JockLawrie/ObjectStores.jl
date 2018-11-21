@@ -1,13 +1,12 @@
 module ObjectStores
 
-export ObjectStore, ObjectStoreClient,             # Types
+export ObjectStore, Bucket, Object,                # Types
        createbucket!, listcontents, deletebucket!, # Buckets: create/update, read, delete
        setindex!, getindex, delete!,               # Objects: create/update, read, delete
-       islocal, isbucket, isobject,                # Conveniences
+       isbucket, isobject,                         # Conveniences
        Permission,                                 # Re-exported from Authorization
        getpermission, setpermission!, setexpiry!,  # Re-exported from Authorization
-       haspermission, permissions_conflict,        # Re-exported from Authorization
-       @add_required_fields_storageclient          # Used when constructing concrete subtypes of ObjectStoreClient
+       haspermission, permissions_conflict         # Re-exported from Authorization
 
 
 using Authorization
@@ -22,41 +21,23 @@ import Authorization.setpermission!
 ################################################################################
 # Types 
 
-abstract type ObjectStoreClient end
+"""
+Required fields:
+- id::String;                                     # From Authorization.AbstractClient
+- id2permission::Dict{String, Permission};        # Resource ID => Permission (from Authorization.AbstractClient)
+- idpattern2permission::Dict{Regex, Permission};  # Resource ID pattern => Permission (from Authorization.AbstractClient)
+- type2permission::Dict{DataType, Permission};    # Resource type => Permission (from Authorization.AbstractClient)
+- rootbucketID::String  # ID of root bucket       # Specific to ObjectStores
+"""
+abstract type ObjectStore <: AbstractClient end
 
-macro add_required_fields_storageclient()
-    return esc(:(
-                 bucket_type::DataType;
-                 object_type::DataType;
-                ))
+struct Bucket <: AbstractResource
+    id::String
 end
 
-
-struct ObjectStore{T <: ObjectStoreClient} <: AbstractClient
-    @add_required_fields_client  # From Authorization.jl: id, id2permission, idpattern2permission, type2permission
-    rootbucketID::String         # ID of root bucket
-    storageclient::T             # Client of back-end storage
-
-    function ObjectStore(id, id2permission, idpattern2permission, type2permission, rootbucketID, storageclient)
-        m = parentmodule(typeof(storageclient))
-        m._isobject(rootbucketID) && error("Root already exists as an object. Cannot use it as a bucket.")
-        newstore = new{typeof(storageclient)}(id, id2permission, idpattern2permission, type2permission, rootbucketID, storageclient)
-        if !m._isbucket(rootbucketID)      # Root does not exist...create it
-            msg = createbucket!(newstore)  # One arg implies bucketname is root
-            msg != nothing && @warn msg    # Couldn't create root bucket...warn
-        end
-        newstore
-    end
+struct Object <: AbstractResource
+    id::String
 end
-
-function ObjectStore(id::String, rootbucketID::String, storageclient)
-    id2permission        = Dict{String, Permission}()
-    idpattern2permission = Dict{Regex,  Permission}()
-    type2permission      = Dict{DataType, Permission}()
-    ObjectStore(id, id2permission, idpattern2permission, type2permission, rootbucketID, storageclient)
-end
-
-ObjectStore(rootbucketID, storageclient) = ObjectStore("", rootbucketID, storageclient)
 
 
 ################################################################################
@@ -71,8 +52,7 @@ function createbucket!(store::ObjectStore, bucketname::String="")
         n = length(store.rootbucketID)
         (length(resourceid) < n || resourceid[1:n] != store.rootbucketID) && return "Cannot create a bucket outside the root bucket"
     end
-    B = store.storageclient.bucket_type
-    create!(store, B(resourceid))
+    create!(store, Bucket(resourceid))
 end
 
 
@@ -88,8 +68,7 @@ function listcontents(store::ObjectStore, bucketname::String="")
             nothing
         end
     end
-    B = store.storageclient.bucket_type
-    ok, val = read(store, B(resourceid))
+    ok, val = read(store, Bucket(resourceid))
     if !ok
         @warn val
         return nothing
@@ -107,8 +86,7 @@ function deletebucket!(store::ObjectStore, bucketname::String="")
         n = length(store.rootbucketID)
         (length(resourceid) < n || resourceid[1:n] != store.rootbucketID) && return "Cannot delete a bucket outside the root bucket"
     end
-    B = store.storageclient.bucket_type
-    delete!(store, B(resourceid))
+    delete!(store, Bucket(resourceid))
 end
 
 
@@ -120,8 +98,7 @@ function setindex!(store::ObjectStore, v, i::String)
     resourceid = normpath(joinpath(store.rootbucketID, i))
     n = length(store.rootbucketID)
     (length(resourceid) < n || resourceid[1:n] != store.rootbucketID) && return "Cannot create/update an object outside the root bucket"
-    O = store.storageclient.object_type
-    create!(store, O(resourceid), v)
+    create!(store, Object(resourceid), v)
 end
 
 
@@ -133,8 +110,7 @@ function getindex(store::ObjectStore, i::String)
         @warn "Cannot read an object outside the root bucket"
         return nothing
     end
-    O = store.storageclient.object_type
-    ok, val = read(store, O(resourceid))
+    ok, val = read(store, Object(resourceid))
     if !ok
         @warn val
         return nothing
@@ -148,20 +124,12 @@ function delete!(store::ObjectStore, i::String)
     resourceid = normpath(joinpath(store.rootbucketID, i))
     n = length(store.rootbucketID)
     (length(resourceid) < n || resourceid[1:n] != store.rootbucketID) && return "Cannot delete an object outside the root bucket"
-    O = store.storageclient.object_type
-    delete!(store, O(resourceid))
+    delete!(store, Object(resourceid))
 end
 
 
 ################################################################################
 # Conveniences
-
-"Returns true if the storage backend is on the same machine as the store instance."
-function islocal(store::ObjectStore)
-    storageclient = store.storageclient
-    m = parentmodule(typeof(store.storageclient))
-    m._islocal(storageclient)
-end
 
 "Returns true if name refers to a bucket."
 function isbucket(store::ObjectStore, name::String)
@@ -171,8 +139,8 @@ function isbucket(store::ObjectStore, name::String)
         @warn "Cannot access buckets or objects outside the root bucket"
         false
     else
-        m = parentmodule(typeof(store.storageclient))
-        m._isbucket(resourceid)
+        m = parentmodule(typeof(store))
+        m._isbucket(store, resourceid)
     end
 end
 
@@ -184,14 +152,14 @@ function isobject(store::ObjectStore, name::String)
         @warn "Cannot access buckets or objects outside the root bucket"
         false
     else
-        m = parentmodule(typeof(store.storageclient))
-        m._isobject(resourceid)
+        m = parentmodule(typeof(store))
+        m._isobject(store, resourceid)
     end
 end
 
 function setpermission!(store::ObjectStore, resourcetype::Symbol, p::Permission)
-    resourcetype == :bucket && return setpermission!(store, store.storageclient.bucket_type, p)
-    resourcetype == :object && return setpermission!(store, store.storageclient.object_type, p)
+    resourcetype == :bucket && return setpermission!(store, Bucket, p)
+    resourcetype == :object && return setpermission!(store, Object, p)
     @warn "Resource type unknown. Permission not set."
 end
 
