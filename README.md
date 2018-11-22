@@ -24,7 +24,7 @@ __NOTE:__ An `ObjectStore` cannot act on (create/read/delete) buckets or objects
 
 # Example Usage
 
-See the examples and tests in [LocalDiskObjectStores.jl](https://github.com/JockLawrie/LocalDiskStores.jl) and [GCSObjectStores.jl](https://github.com/JockLawrie/GCSObjectStores.jl), which uses the local file system as the storage back-end.
+See the examples and tests in [LocalDiskObjectStores.jl](https://github.com/JockLawrie/LocalDiskObjectStores.jl) and [GCSObjectStores.jl](https://github.com/JockLawrie/GCSObjectStores.jl), which uses the local file system as the storage back-end.
 
 
 # API
