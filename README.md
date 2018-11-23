@@ -37,7 +37,7 @@ setpermission!(store, :bucket, Permission(false, true, false, false))  # Bucket 
 setpermission!(store, :object, Permission(false, true, false, false))  # Object access is cRud (read-only) without expiry
 
 # Allow CRUD (read/write) access for 5 minutes to objects in the bucket called "mybucket"
-setpermission!(store, r"^rootbucket/mybucket/*", Permission(true, true, true, true, now() + Minute(5)))
+setpermission!(store, r"^rootbucket/mybucket/.*", Permission(true, true, true, true, now() + Minute(5)))
 
 # Buckets
 createbucket!(store, "mybucket")  # Create mybucket in the root bucket
