@@ -12,7 +12,7 @@ In an object store, data is stored as objects and objects are grouped into bucke
 
 Concrete examples of object stores include:
 - [LocalDiskObjectStores.jl](https://github.com/JockLawrie/LocalDiskObjectStores.jl), which uses the local file system to store objects (files) in buckets (directories).
-- [GCSObjectStores.jl](https://github.com/JockLawrie/GCSObjectStores.jl), which uses Google Cloud Storage.
+- [GoogleCloudObjectStores.jl](https://github.com/JockLawrie/GoogleCloudObjectStores.jl), which uses Google Cloud Storage.
 
 
 # Permissions
@@ -24,7 +24,7 @@ __NOTE:__ An `ObjectStore` cannot act on (create/read/delete) buckets or objects
 
 # Example Usage
 
-See the examples and tests in [LocalDiskObjectStores.jl](https://github.com/JockLawrie/LocalDiskObjectStores.jl) and [GCSObjectStores.jl](https://github.com/JockLawrie/GCSObjectStores.jl), which uses the local file system as the storage back-end.
+See the examples and tests in [LocalDiskObjectStores.jl](https://github.com/JockLawrie/LocalDiskObjectStores.jl) and [GoogleCloudObjectStores.jl](https://github.com/JockLawrie/GoogleCloudObjectStores.jl), which uses the local file system as the storage back-end.
 
 
 # API
