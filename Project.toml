@@ -1,5 +1,5 @@
 name = "ObjectStores"
-uuid = "e102f8c2-d0e1-11e8-0211-39155c3f0463"
+uuid = "03c2b57b-fb4c-5576-ac09-ef0ca0563633"
 authors = ["Jock Lawrie <jock.lawrie@gmail.com>"]
 version = "0.4.0"
 
